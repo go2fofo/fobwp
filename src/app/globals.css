@@ -1,0 +1,80 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* 浅色樱花主题 */
+    --background: 340 40% 99%;
+    --foreground: 340 22% 18%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 340 22% 18%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 340 22% 18%;
+
+    /* 樱花粉 */
+    --primary: 340 82% 68%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 340 45% 96%;
+    --secondary-foreground: 340 30% 30%;
+
+    --muted: 340 35% 96%;
+    --muted-foreground: 340 12% 46%;
+
+    --accent: 340 50% 95%;
+    --accent-foreground: 340 30% 30%;
+
+    --destructive: 0 72% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 340 28% 91%;
+    --input: 340 28% 91%;
+    --ring: 340 82% 68%;
+
+    --radius: 0.75rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply text-foreground;
+    background-color: hsl(var(--background));
+    background-image: radial-gradient(
+        50% 40% at 15% 0%,
+        hsl(340 90% 92% / 0.55),
+        transparent
+      ),
+      radial-gradient(45% 35% at 90% 5%, hsl(20 90% 92% / 0.5), transparent);
+    font-family: ui-sans-serif, system-ui, -apple-system, "PingFang SC",
+      "Microsoft YaHei", sans-serif;
+  }
+}
+
+/* 自定义滚动条 */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: hsl(340 40% 85%);
+  border-radius: 6px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: hsl(340 60% 75%);
+}
+
+@layer utilities {
+  /* 樱花卡片风格 */
+  .sakura-card {
+    @apply rounded-2xl border border-border bg-card shadow-sm;
+  }
+}
