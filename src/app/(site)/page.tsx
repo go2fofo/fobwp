@@ -43,6 +43,24 @@ function scoreSum(s: ShishenScore): number {
   );
 }
 
+/** 梯队评价排序权重：夯 > 顶级 > 人上人 > NPC > 拉完了 */
+const EVAL_ORDER: Record<string, number> = {
+  夯: 5,
+  顶级: 4,
+  人上人: 3,
+  NPC: 2,
+  拉完了: 1,
+};
+
+/** 候选区排序方式 */
+const SORT_OPTIONS: { value: string; label: string }[] = [
+  { value: "default", label: "默认顺序" },
+  { value: "evaluation", label: "梯队评价" },
+  { value: "score", label: "计算和" },
+  ...RATING_FIELDS.map((f) => ({ value: String(f.key), label: f.label })),
+  { value: "name", label: "名称" },
+];
+
 export default function HomePage() {
   const { user } = useAuth();
   const cardMap = useShishenCardMap();
@@ -51,6 +69,7 @@ export default function HomePage() {
   const [selected, setSelected] = React.useState<Card[]>([]);
   const [keyword, setKeyword] = React.useState("");
   const debouncedKeyword = useDebouncedValue(keyword);
+  const [sortKey, setSortKey] = React.useState("default");
 
   // 评分系统（默认 = 管理员的默认评分）
   const [owners, setOwners] = React.useState<
@@ -111,16 +130,38 @@ export default function HomePage() {
   const candidates = React.useMemo(() => {
     const kw = debouncedKeyword.toLowerCase();
     const picked = new Set(selected.map((s) => s.id));
-    return options
+    const list = options
       .filter((s) => !picked.has(s.id))
       .filter(
         (s) =>
           !kw ||
           s.name.toLowerCase().includes(kw) ||
           (s.alias ?? []).some((a) => a.toLowerCase().includes(kw))
-      )
+      );
+
+    if (sortKey === "default") return list.slice(0, 60);
+
+    const ratingOf = (s: Card) => ratingByRole[String(s.role)];
+    const numOf = (s: Card, key: string) => {
+      const r = ratingOf(s);
+      if (!r) return -1;
+      if (key === "score") return scoreSum(r);
+      return (r[key as keyof ShishenScore] as number) ?? 0;
+    };
+
+    return [...list]
+      .sort((a, b) => {
+        if (sortKey === "name") return a.name.localeCompare(b.name, "zh-Hans-CN");
+        if (sortKey === "evaluation") {
+          const diff =
+            (EVAL_ORDER[ratingOf(b)?.evaluation ?? ""] ?? 0) -
+            (EVAL_ORDER[ratingOf(a)?.evaluation ?? ""] ?? 0);
+          return diff || numOf(b, "score") - numOf(a, "score");
+        }
+        return numOf(b, sortKey) - numOf(a, sortKey) || a.name.localeCompare(b.name, "zh-Hans-CN");
+      })
       .slice(0, 60);
-  }, [options, selected, debouncedKeyword]);
+  }, [options, selected, debouncedKeyword, sortKey, ratingByRole]);
 
   const totalScore = selected.reduce(
     (sum, s) => {
@@ -191,7 +232,7 @@ export default function HomePage() {
   }
 
   return (
-    <div className="container py-10">
+    <div className="mx-auto w-[90vw] py-10">
       <header className="mb-8 text-center">
         <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-xs text-primary">
           <Sparkles className="h-3.5 w-3.5" />
@@ -206,7 +247,7 @@ export default function HomePage() {
         </p>
       </header>
 
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
+      <div className="grid w-full gap-6 lg:grid-cols-[1fr_360px]">
         {/* 式神选择 */}
         <div>
           <div className="mb-4 flex flex-col gap-3 sm:flex-row">
@@ -231,9 +272,21 @@ export default function HomePage() {
                 </option>
               ))}
             </Select>
+            <Select
+              value={sortKey}
+              onChange={(e) => setSortKey(e.target.value)}
+              className="h-11 rounded-full sm:w-36"
+              title="排序方式"
+            >
+              {SORT_OPTIONS.map((o) => (
+                <option key={o.value} value={o.value}>
+                  排序：{o.label}
+                </option>
+              ))}
+            </Select>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {candidates.map((s) => {
               const err = addError(s);
               const rating = ratingByRole[String(s.role)];
@@ -244,63 +297,87 @@ export default function HomePage() {
                   disabled={Boolean(err)}
                   onClick={() => add(s)}
                   title={err ?? undefined}
-                  className="group flex items-center gap-3 rounded-2xl border border-border bg-card p-3 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
+                  className="group flex flex-col rounded-2xl border border-border bg-card p-3.5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:translate-y-0"
                 >
-                  <ShishenAvatar
-                    id={avatarIdOf(s.role, s)}
-                    name={s.name}
-                    className="h-12 w-12"
-                  />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-1.5">
-                      <span className="truncate text-sm font-semibold">
-                        {s.name}
-                      </span>
-                      <EvaluationBadge value={rating?.evaluation} />
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <Badge className={factionClass(s.faction)}>
-                        {s.faction ?? "未知"}
-                      </Badge>
-                      {(s.alias ?? []).map((a) => (
-                        <span
-                          key={a}
-                          className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground"
-                        >
-                          {a}
+                  <div className="flex items-start gap-3">
+                    <ShishenAvatar
+                      id={avatarIdOf(s.role, s)}
+                      name={s.name}
+                      className="h-14 w-14"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <span className="truncate text-[15px] font-semibold">
+                          {s.name}
                         </span>
-                      ))}
-                    </div>
-
-                    {rating ? (
-                      <div className="mt-2 rounded-lg bg-secondary/50 px-2 py-1.5">
-                        <div className="flex flex-wrap gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                          {RATING_FIELDS.map((f) => (
-                            <span key={String(f.key)}>
-                              {f.label}
-                              <b className="text-foreground">
-                                {(rating[f.key as keyof ShishenScore] as number) ??
-                                  0}
-                              </b>
-                            </span>
-                          ))}
-                        </div>
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[11px] text-muted-foreground">
-                          {rating.qiang_shi_gou_ci && (
-                            <span>强勾 {rating.qiang_shi_gou_ci}</span>
-                          )}
-                          <span className="ml-auto font-bold text-primary">
-                            计算和 {scoreSum(rating)}
-                          </span>
-                        </div>
+                        <EvaluationBadge value={rating?.evaluation} />
                       </div>
-                    ) : (
-                      <span className="mt-2 inline-block text-[11px] text-muted-foreground">
-                        未评分
-                      </span>
-                    )}
+                      <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                        <Badge className={factionClass(s.faction)}>
+                          {s.faction ?? "未知"}
+                        </Badge>
+                        {(s.alias ?? []).slice(0, 3).map((a) => (
+                          <span
+                            key={a}
+                            className="rounded-full bg-secondary px-1.5 py-0.5 text-[10px] text-muted-foreground"
+                          >
+                            {a}
+                          </span>
+                        ))}
+                      </div>
+                      {rating?.note && (
+                        <p className="mt-1.5 line-clamp-1 text-[11px] text-muted-foreground">
+                          {rating.note}
+                        </p>
+                      )}
+                    </div>
+                    <Plus className="mt-1 h-4 w-4 shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
                   </div>
-                  <Plus className="h-4 w-4 shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100" />
+
+                  {rating ? (
+                    <>
+                      <div className="mt-3 grid grid-cols-6 gap-1">
+                        {RATING_FIELDS.map((f) => {
+                          const v =
+                            (rating[f.key as keyof ShishenScore] as number) ?? 0;
+                          return (
+                            <div
+                              key={String(f.key)}
+                              className="rounded-lg bg-secondary/60 py-1 text-center"
+                            >
+                              <div className="text-[10px] leading-tight text-muted-foreground">
+                                {f.label}
+                              </div>
+                              <div className="text-sm font-bold leading-tight">
+                                {v > 0 ? (
+                                  v
+                                ) : (
+                                  <span className="text-muted-foreground/50">
+                                    –
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground">
+                          强勾{" "}
+                          <b className="text-foreground">
+                            {rating.qiang_shi_gou_ci || "—"}
+                          </b>
+                        </span>
+                        <span className="text-muted-foreground">
+                          计算和 <b className="text-primary">{scoreSum(rating)}</b>
+                        </span>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="mt-3 rounded-lg border border-dashed py-2.5 text-center text-[11px] text-muted-foreground">
+                      当前评分系统未评分
+                    </div>
+                  )}
                 </button>
               );
             })}
@@ -313,16 +390,21 @@ export default function HomePage() {
         </div>
 
         {/* 卡组面板 */}
-        <aside className="lg:sticky lg:top-20 lg:h-fit">
-          <div className="sakura-card p-5">
-            <div className="mb-4 flex items-center justify-between">
-              <h2 className="font-semibold">
-                我的卡组（{selected.length}/{MAX_DECK}）
-              </h2>
+        <aside className="lg:sticky lg:top-20 lg:h-fit lg:self-start">
+          <div className="sakura-card flex flex-col overflow-hidden lg:max-h-[calc(100vh-6rem)]">
+            {/* 头部（固定） */}
+            <div className="flex shrink-0 items-center justify-between border-b border-border/70 bg-secondary/40 px-5 py-3.5">
+              <div className="flex items-center gap-2">
+                <h2 className="font-semibold">我的卡组</h2>
+                <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary">
+                  {selected.length}/{MAX_DECK}
+                </span>
+              </div>
               {selected.length > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
+                  className="h-7 px-2 text-xs"
                   onClick={() => setSelected([])}
                 >
                   清空
@@ -330,120 +412,203 @@ export default function HomePage() {
               )}
             </div>
 
-            <div className="mb-4 space-y-2">
-              {selected.length === 0 && (
-                <p className="rounded-xl border border-dashed py-8 text-center text-xs text-muted-foreground">
-                  从左侧选择式神
-                </p>
-              )}
-              {selected.map((s) => {
-                const rating = ratingByRole[String(s.role)];
-                return (
-                  <div
-                    key={s.id}
-                    className="rounded-xl bg-secondary/60 px-3 py-2"
-                  >
-                    <div className="flex items-center gap-2">
+            <div className="slim-scroll min-h-0 flex-1 overflow-y-auto p-5">
+              {/* 四个卡位 */}
+              <div className="mb-4 grid grid-cols-4 gap-2">
+                {Array.from({ length: MAX_DECK }).map((_, i) => {
+                  const s = selected[i];
+                  if (!s) {
+                    return (
+                      <div
+                        key={`empty-${i}`}
+                        className="flex aspect-square items-center justify-center rounded-xl border border-dashed border-border text-muted-foreground/40"
+                      >
+                        <Plus className="h-4 w-4" />
+                      </div>
+                    );
+                  }
+                  return (
+                    <div
+                      key={s.id}
+                      className="group relative aspect-square overflow-hidden rounded-xl border border-primary/30"
+                    >
                       <ShishenAvatar
                         id={avatarIdOf(s.role, s)}
                         name={s.name}
-                        className="h-8 w-8"
+                        className="h-full w-full rounded-xl"
                       />
-                      <span className="flex-1 truncate text-sm font-medium">
+                      <div className="absolute inset-x-0 bottom-0 truncate bg-slate-900/55 px-1 py-0.5 text-center text-[9px] font-medium text-white">
                         {s.name}
-                      </span>
-                      <EvaluationBadge value={rating?.evaluation} />
-                      {rating && (
-                        <span className="text-xs font-bold text-primary">
-                          计算和 {scoreSum(rating)}
-                        </span>
-                      )}
-                      <Badge className={factionClass(s.faction)}>
-                        {s.faction ?? "未知"}
-                      </Badge>
+                      </div>
                       <button
                         type="button"
+                        aria-label={`移除 ${s.name}`}
                         onClick={() =>
                           setSelected((prev) =>
                             prev.filter((x) => x.id !== s.id)
                           )
                         }
-                        className="text-muted-foreground hover:text-destructive"
+                        className="absolute right-0.5 top-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-slate-900/60 text-white opacity-0 transition-opacity hover:bg-destructive group-hover:opacity-100"
                       >
-                        <X className="h-4 w-4" />
+                        <X className="h-3 w-3" />
                       </button>
                     </div>
-                    {rating && (
-                      <div className="mt-1 flex flex-wrap gap-x-2 gap-y-0.5 pl-10 text-[10px] text-muted-foreground">
-                        {RATING_FIELDS.map((f) => (
-                          <span key={String(f.key)}>
-                            {f.label}{" "}
-                            <b className="text-foreground">
-                              {(rating[f.key as keyof ShishenScore] as number) ??
-                                0}
-                            </b>
+                  );
+                })}
+              </div>
+
+              {/* 已选式神详情 */}
+              {selected.length === 0 ? (
+                <p className="rounded-xl border border-dashed py-8 text-center text-xs text-muted-foreground">
+                  从左侧选择 {MAX_DECK} 位式神
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {selected.map((s) => {
+                    const rating = ratingByRole[String(s.role)];
+                    return (
+                      <div
+                        key={s.id}
+                        className="rounded-xl border border-border/70 bg-card p-2.5"
+                      >
+                        <div className="flex items-center gap-2">
+                          <ShishenAvatar
+                            id={avatarIdOf(s.role, s)}
+                            name={s.name}
+                            className="h-8 w-8"
+                          />
+                          <span className="min-w-0 flex-1 truncate text-xs font-semibold">
+                            {s.name}
                           </span>
-                        ))}
-                        {rating.qiang_shi_gou_ci && (
-                          <span>强勾 {rating.qiang_shi_gou_ci}</span>
+                          <button
+                            type="button"
+                            aria-label={`移除 ${s.name}`}
+                            onClick={() =>
+                              setSelected((prev) =>
+                                prev.filter((x) => x.id !== s.id)
+                              )
+                            }
+                            className="shrink-0 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        </div>
+
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                          <EvaluationBadge value={rating?.evaluation} />
+                          <Badge className={factionClass(s.faction)}>
+                            {s.faction ?? "未知"}
+                          </Badge>
+                        </div>
+
+                        {rating ? (
+                          <>
+                            <div className="mt-1.5 grid grid-cols-3 gap-x-1.5 gap-y-0.5 text-[10px] text-muted-foreground">
+                              {RATING_FIELDS.map((f) => {
+                                const v =
+                                  (rating[
+                                    f.key as keyof ShishenScore
+                                  ] as number) ?? 0;
+                                return (
+                                  <span key={String(f.key)} className="truncate">
+                                    {f.label}
+                                    <b className="ml-0.5 text-foreground">
+                                      {v > 0 ? v : "–"}
+                                    </b>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            <div className="mt-1 flex items-center justify-between gap-1 text-[10px] text-muted-foreground">
+                              <span className="truncate">
+                                强勾{" "}
+                                <b className="text-foreground">
+                                  {rating.qiang_shi_gou_ci || "—"}
+                                </b>
+                              </span>
+                              <span className="shrink-0">
+                                计算和{" "}
+                                <b className="text-primary">
+                                  {scoreSum(rating)}
+                                </b>
+                              </span>
+                            </div>
+                          </>
+                        ) : (
+                          <p className="mt-1.5 text-[10px] text-muted-foreground">
+                            当前评分系统未评分
+                          </p>
                         )}
                       </div>
-                    )}
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* 统计 */}
+              {selected.length > 0 && (
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl bg-secondary/40 px-3 py-2.5">
+                    <div className="text-[10px] text-muted-foreground">
+                      计算和合计
+                    </div>
+                    <div className="text-lg font-bold leading-tight text-primary">
+                      {totalScore}
+                    </div>
                   </div>
-                );
-              })}
+                  <div className="rounded-xl bg-secondary/40 px-3 py-2.5">
+                    <div className="text-[10px] text-muted-foreground">
+                      派系 {factions.length}/{MAX_FACTIONS}
+                    </div>
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {factions.map((f) => (
+                        <Badge key={f} className={factionClass(f)}>
+                          {f}
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* 保存表单 */}
+              <div className="mt-5 space-y-3 border-t border-border/70 pt-5">
+                <div className="space-y-1.5">
+                  <Label htmlFor="deck-name">卡组名称</Label>
+                  <Input
+                    id="deck-name"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    placeholder="例如：红莲快攻"
+                    className="h-10 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="deck-score">我的评分（0-20）</Label>
+                  <Input
+                    id="deck-score"
+                    type="number"
+                    min={0}
+                    max={20}
+                    value={score}
+                    onChange={(e) => setScore(Number(e.target.value))}
+                    className="h-10 rounded-xl"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="deck-note">备注</Label>
+                  <Textarea
+                    id="deck-note"
+                    value={note}
+                    onChange={(e) => setNote(e.target.value)}
+                    placeholder="卡组思路、对局要点……"
+                  />
+                </div>
+              </div>
             </div>
 
-            {factions.length > 0 && (
-              <div className="mb-4 flex flex-wrap items-center gap-1.5">
-                {factions.map((f) => (
-                  <Badge key={f} className={factionClass(f)}>
-                    {f}
-                  </Badge>
-                ))}
-                <span className="text-xs text-muted-foreground">
-                  派系 {factions.length}/{MAX_FACTIONS}
-                </span>
-              </div>
-            )}
-
-            {selected.length > 0 && (
-              <div className="mb-4 flex items-center justify-between rounded-xl bg-secondary/40 px-3 py-2 text-sm">
-                <span className="text-muted-foreground">计算和合计</span>
-                <span className="font-bold text-primary">{totalScore}</span>
-              </div>
-            )}
-
-            <div className="space-y-3">
-              <div className="space-y-1.5">
-                <Label htmlFor="deck-name">卡组名称</Label>
-                <Input
-                  id="deck-name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  placeholder="例如：红莲快攻"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="deck-score">我的评分（0-20）</Label>
-                <Input
-                  id="deck-score"
-                  type="number"
-                  min={0}
-                  max={20}
-                  value={score}
-                  onChange={(e) => setScore(Number(e.target.value))}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="deck-note">备注</Label>
-                <Textarea
-                  id="deck-note"
-                  value={note}
-                  onChange={(e) => setNote(e.target.value)}
-                  placeholder="卡组思路、对局要点……"
-                />
-              </div>
+            {/* 底部（固定，不参与滚动） */}
+            <div className="shrink-0 space-y-2 border-t border-border/70 bg-card px-5 py-3.5">
               {message && (
                 <p className="rounded-lg bg-primary/10 px-3 py-2 text-xs text-primary">
                   {message}

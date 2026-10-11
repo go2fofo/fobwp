@@ -77,4 +77,21 @@
   .sakura-card {
     @apply rounded-2xl border border-border bg-card shadow-sm;
   }
+
+  /* 独立的细滚动条（用于侧栏等内部滚动区域，不影响页面滚动条） */
+  .slim-scroll {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(340 40% 85%) transparent;
+  }
+  .slim-scroll::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .slim-scroll::-webkit-scrollbar-thumb {
+    background: hsl(340 40% 85%);
+    border-radius: 6px;
+  }
+  .slim-scroll::-webkit-scrollbar-thumb:hover {
+    background: hsl(340 60% 75%);
+  }
 }
