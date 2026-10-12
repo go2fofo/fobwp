@@ -166,6 +166,21 @@ export default function HomePage() {
     return () => window.removeEventListener("resize", place);
   }, []);
 
+  // 移动端卡组面板打开时锁定页面滚动，避免滚动穿透
+  React.useEffect(() => {
+    if (!deckOpen) return;
+    const body = document.body;
+    const html = document.documentElement;
+    const prevBody = body.style.overflow;
+    const prevHtml = html.style.overflow;
+    body.style.overflow = "hidden";
+    html.style.overflow = "hidden";
+    return () => {
+      body.style.overflow = prevBody;
+      html.style.overflow = prevHtml;
+    };
+  }, [deckOpen]);
+
   function onFloatPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
     if (!floatPos) return;
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -563,7 +578,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="slim-scroll min-h-0 flex-1 overflow-y-auto p-5">
+            <div className="slim-scroll min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain p-5">
               {/* 四个卡位 */}
               <div className="mb-4 grid grid-cols-4 gap-2">
                 {Array.from({ length: MAX_DECK }).map((_, i) => {
