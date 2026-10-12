@@ -358,7 +358,7 @@ export default function HomePage() {
       <header className="mb-8 text-center">
         <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary sm:px-4">
           <Sparkles className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">百闻牌式神卡组评分系统</span>
+          <span >百闻牌式神卡组评分系统</span>
         </div>
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
           组建你的

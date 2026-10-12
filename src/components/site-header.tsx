@@ -1,3 +1,11 @@
+/*
+ * @Author: whq
+ * @Date: 2026-10-11 14:21:50
+ * @LastEditTime: 2026-10-12 19:58:16
+ * @LastEditors: whq
+ * @Description: 
+ * @FilePath: \fobwp\src\components\site-header.tsx
+ */
 "use client";
 
 import * as React from "react";
@@ -23,7 +31,7 @@ export function SiteHeader() {
     <header className="sticky top-0 z-40 border-b border-border/70 bg-background/80 backdrop-blur">
       <div className="container flex h-16 items-center justify-between">
         <div className="flex items-center gap-6">
-          <Link href="/" className="flex items-center gap-2">
+          <Link href="/" className="flex items-center gap-2 hidden sm:inline">
             <Flower2 className="h-5 w-5 text-primary" />
             <span className="text-lg font-bold tracking-wide">百闻牌评分</span>
           </Link>
