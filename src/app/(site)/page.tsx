@@ -1,7 +1,16 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Plus, Save, Search, Sparkles, X } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Plus,
+  Save,
+  Search,
+  Sparkles,
+  X,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -61,6 +70,9 @@ const SORT_OPTIONS: { value: string; label: string }[] = [
   { value: "name", label: "名称" },
 ];
 
+/** 式神候选区每页数量 */
+const PAGE_SIZE = 24;
+
 export default function HomePage() {
   const { user } = useAuth();
   const cardMap = useShishenCardMap();
@@ -70,6 +82,8 @@ export default function HomePage() {
   const [keyword, setKeyword] = React.useState("");
   const debouncedKeyword = useDebouncedValue(keyword);
   const [sortKey, setSortKey] = React.useState("default");
+  const [factionFilter, setFactionFilter] = React.useState("all");
+  const [page, setPage] = React.useState(1);
 
   // 评分系统（默认 = 管理员的默认评分）
   const [owners, setOwners] = React.useState<
@@ -127,11 +141,23 @@ export default function HomePage() {
     [selected]
   );
 
-  const candidates = React.useMemo(() => {
+  // 派系选项（取自式神卡牌数据）
+  const factionOptions = React.useMemo(
+    () =>
+      Array.from(new Set(options.map((s) => s.faction ?? "未知"))).sort((a, b) =>
+        a.localeCompare(b, "zh-Hans-CN")
+      ),
+    [options]
+  );
+
+  const filtered = React.useMemo(() => {
     const kw = debouncedKeyword.toLowerCase();
     const picked = new Set(selected.map((s) => s.id));
     const list = options
       .filter((s) => !picked.has(s.id))
+      .filter(
+        (s) => factionFilter === "all" || (s.faction ?? "未知") === factionFilter
+      )
       .filter(
         (s) =>
           !kw ||
@@ -139,7 +165,7 @@ export default function HomePage() {
           (s.alias ?? []).some((a) => a.toLowerCase().includes(kw))
       );
 
-    if (sortKey === "default") return list.slice(0, 60);
+    if (sortKey === "default") return list;
 
     const ratingOf = (s: Card) => ratingByRole[String(s.role)];
     const numOf = (s: Card, key: string) => {
@@ -149,19 +175,32 @@ export default function HomePage() {
       return (r[key as keyof ShishenScore] as number) ?? 0;
     };
 
-    return [...list]
-      .sort((a, b) => {
-        if (sortKey === "name") return a.name.localeCompare(b.name, "zh-Hans-CN");
-        if (sortKey === "evaluation") {
-          const diff =
-            (EVAL_ORDER[ratingOf(b)?.evaluation ?? ""] ?? 0) -
-            (EVAL_ORDER[ratingOf(a)?.evaluation ?? ""] ?? 0);
-          return diff || numOf(b, "score") - numOf(a, "score");
-        }
-        return numOf(b, sortKey) - numOf(a, sortKey) || a.name.localeCompare(b.name, "zh-Hans-CN");
-      })
-      .slice(0, 60);
-  }, [options, selected, debouncedKeyword, sortKey, ratingByRole]);
+    return [...list].sort((a, b) => {
+      if (sortKey === "name") return a.name.localeCompare(b.name, "zh-Hans-CN");
+      if (sortKey === "evaluation") {
+        const diff =
+          (EVAL_ORDER[ratingOf(b)?.evaluation ?? ""] ?? 0) -
+          (EVAL_ORDER[ratingOf(a)?.evaluation ?? ""] ?? 0);
+        return diff || numOf(b, "score") - numOf(a, "score");
+      }
+      return (
+        numOf(b, sortKey) - numOf(a, sortKey) ||
+        a.name.localeCompare(b.name, "zh-Hans-CN")
+      );
+    });
+  }, [options, selected, debouncedKeyword, sortKey, ratingByRole, factionFilter]);
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const candidates = React.useMemo(
+    () => filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE),
+    [filtered, currentPage]
+  );
+
+  // 筛选 / 排序 / 评分系统变化时回到第一页
+  React.useEffect(() => {
+    setPage(1);
+  }, [debouncedKeyword, factionFilter, sortKey, ownerId]);
 
   const totalScore = selected.reduce(
     (sum, s) => {
@@ -250,7 +289,7 @@ export default function HomePage() {
       <div className="grid w-full gap-6 lg:grid-cols-[1fr_360px]">
         {/* 式神选择 */}
         <div>
-          <div className="mb-4 flex flex-col gap-3 sm:flex-row">
+          <div className="mb-4 flex flex-col gap-3 lg:flex-row">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
@@ -260,30 +299,46 @@ export default function HomePage() {
                 className="h-11 rounded-full pl-10"
               />
             </div>
-            <Select
-              value={ownerId ?? ""}
-              onChange={(e) => setOwnerId(Number(e.target.value))}
-              className="h-11 rounded-full sm:w-44"
-            >
-              {owners.length === 0 && <option value="">暂无评分系统</option>}
-              {owners.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.isDefault ? "默认评分" : o.name}
-                </option>
-              ))}
-            </Select>
-            <Select
-              value={sortKey}
-              onChange={(e) => setSortKey(e.target.value)}
-              className="h-11 rounded-full sm:w-36"
-              title="排序方式"
-            >
-              {SORT_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  排序：{o.label}
-                </option>
-              ))}
-            </Select>
+            <div className="flex flex-wrap gap-3">
+              <Select
+                value={factionFilter}
+                onChange={(e) => setFactionFilter(e.target.value)}
+                className="h-11 flex-1 rounded-full sm:w-32 sm:flex-none"
+                title="派系筛选"
+              >
+                <option value="all">全部派系</option>
+                {factionOptions.map((f) => (
+                  <option key={f} value={f}>
+                    {f}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                value={sortKey}
+                onChange={(e) => setSortKey(e.target.value)}
+                className="h-11 flex-1 rounded-full sm:w-36 sm:flex-none"
+                title="排序方式"
+              >
+                {SORT_OPTIONS.map((o) => (
+                  <option key={o.value} value={o.value}>
+                    排序：{o.label}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                value={ownerId ?? ""}
+                onChange={(e) => setOwnerId(Number(e.target.value))}
+                className="h-11 flex-1 rounded-full sm:w-40 sm:flex-none"
+                title="评分系统"
+              >
+                {owners.length === 0 && <option value="">暂无评分系统</option>}
+                {owners.map((o) => (
+                  <option key={o.id} value={o.id}>
+                    {o.isDefault ? "默认评分" : o.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -387,6 +442,36 @@ export default function HomePage() {
               </p>
             )}
           </div>
+
+          {/* 分页 */}
+          {filtered.length > 0 && (
+            <div className="mt-5 flex items-center justify-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={currentPage <= 1}
+                onClick={() => setPage(Math.max(1, currentPage - 1))}
+              >
+                <ChevronLeft className="mr-1 h-4 w-4" />
+                上一页
+              </Button>
+              <span className="px-2 text-sm text-muted-foreground">
+                第 <b className="text-foreground">{currentPage}</b> / {totalPages} 页
+                <span className="ml-2 text-xs">共 {filtered.length} 位</span>
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-full"
+                disabled={currentPage >= totalPages}
+                onClick={() => setPage(Math.min(totalPages, currentPage + 1))}
+              >
+                下一页
+                <ChevronRight className="ml-1 h-4 w-4" />
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* 卡组面板 */}
