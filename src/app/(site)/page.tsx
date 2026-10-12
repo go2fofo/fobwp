@@ -158,7 +158,7 @@ export default function HomePage() {
       setFloatPos((prev) =>
         prev ?? {
           x: Math.max(12, window.innerWidth - 150),
-          y: Math.max(12, window.innerHeight - 120),
+          y: Math.max(12, window.innerHeight - 320),
         }
       );
     place();
@@ -822,7 +822,7 @@ export default function HomePage() {
           className="fixed z-[90] flex touch-none select-none items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 lg:hidden"
         >
           <Layers className="h-4 w-4" />
-          我的卡组
+          卡组
           <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.5 text-[11px]">
             {selected.length}/{MAX_DECK}
           </span>
