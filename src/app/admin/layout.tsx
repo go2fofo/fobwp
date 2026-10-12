@@ -33,17 +33,21 @@ export default function AdminLayout({
   const { user, loading } = useAuth();
 
   const isAdmin = user?.role === "admin";
-  // 普通用户仅可进入「式神评分管理」
-  const canAccess = isAdmin || pathname.startsWith("/admin/shishen");
+  // 普通用户仅可进入「概览」与「式神评分管理」
+  const canAccess =
+    isAdmin ||
+    pathname === "/admin" ||
+    pathname.startsWith("/admin/shishen");
 
   React.useEffect(() => {
     if (
       !loading &&
       user &&
       !isAdmin &&
+      pathname !== "/admin" &&
       !pathname.startsWith("/admin/shishen")
     ) {
-      router.replace("/admin/shishen");
+      router.replace("/admin");
     }
   }, [loading, user, isAdmin, pathname, router]);
 
@@ -80,7 +84,11 @@ export default function AdminLayout({
     );
   }
 
-  const nav = isAdmin ? NAV : NAV.filter((i) => i.href === "/admin/shishen");
+  const nav = isAdmin
+    ? NAV
+    : NAV.filter(
+        (i) => i.href === "/admin" || i.href === "/admin/shishen"
+      );
 
   return (
     <div className="flex h-screen overflow-hidden">
