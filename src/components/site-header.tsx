@@ -1,7 +1,7 @@
 /*
  * @Author: whq
  * @Date: 2026-10-11 14:21:50
- * @LastEditTime: 2026-10-12 19:58:16
+ * @LastEditTime: 2026-10-12 20:22:41
  * @LastEditors: whq
  * @Description: 
  * @FilePath: \fobwp\src\components\site-header.tsx
@@ -60,14 +60,12 @@ export function SiteHeader() {
         </div>
 
         <div className="flex items-center gap-2">
-          {user?.role === "admin" && (
             <Button asChild variant="ghost" size="sm">
               <Link href="/admin">
                 <Shield className="mr-1.5 h-4 w-4" />
                 后台
               </Link>
             </Button>
-          )}
           {user ? (
             <div className="flex items-center gap-2">
               <span className="hidden items-center gap-1.5 text-sm text-muted-foreground sm:flex">

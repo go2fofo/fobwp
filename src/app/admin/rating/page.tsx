@@ -204,8 +204,8 @@ export default function AdminRatingPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-6 flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">卡组评分管理</h1>
           <p className="text-sm text-muted-foreground">
@@ -218,7 +218,7 @@ export default function AdminRatingPage() {
         </Button>
       </div>
 
-      <div className="mb-4 max-w-xs">
+      <div className="mb-4 max-w-xs shrink-0">
         <Select
           value={userFilter}
           onChange={(e) => setUserFilter(e.target.value)}
@@ -233,13 +233,13 @@ export default function AdminRatingPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
+        <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="rounded-xl border">
-          <Table>
-            <TableHeader>
+        <div className="min-h-0 flex-1 overflow-hidden rounded-xl border">
+          <Table containerClassName="slim-scroll h-full">
+            <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow>
                 <TableHead>卡组名称</TableHead>
                 <TableHead>所属用户</TableHead>

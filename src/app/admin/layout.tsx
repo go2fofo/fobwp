@@ -1,7 +1,8 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import {
   ArrowLeft,
   Home,
@@ -28,7 +29,23 @@ export default function AdminLayout({
   children: React.ReactNode;
 }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { user, loading } = useAuth();
+
+  const isAdmin = user?.role === "admin";
+  // 普通用户仅可进入「式神评分管理」
+  const canAccess = isAdmin || pathname.startsWith("/admin/shishen");
+
+  React.useEffect(() => {
+    if (
+      !loading &&
+      user &&
+      !isAdmin &&
+      !pathname.startsWith("/admin/shishen")
+    ) {
+      router.replace("/admin/shishen");
+    }
+  }, [loading, user, isAdmin, pathname, router]);
 
   if (loading) {
     return (
@@ -38,16 +55,14 @@ export default function AdminLayout({
     );
   }
 
-  if (!user || user.role !== "admin") {
+  if (!user) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-4 text-center">
         <Shield className="h-10 w-10 text-muted-foreground" />
         <div>
-          <h1 className="text-xl font-bold">无访问权限</h1>
+          <h1 className="text-xl font-bold">需要登录</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {user
-              ? "当前账号为普通账号，无法进入后台管理。"
-              : "请先使用管理员账号登录。"}
+            请先登录后再进入后台管理。
           </p>
         </div>
         <Button asChild>
@@ -57,15 +72,25 @@ export default function AdminLayout({
     );
   }
 
+  if (!canAccess) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const nav = isAdmin ? NAV : NAV.filter((i) => i.href === "/admin/shishen");
+
   return (
-    <div className="flex min-h-screen">
-      <aside className="hidden w-60 shrink-0 flex-col border-r border-border bg-card/60 p-4 md:flex">
+    <div className="flex h-screen overflow-hidden">
+      <aside className="slim-scroll hidden w-60 shrink-0 flex-col overflow-y-auto border-r border-border bg-card/60 p-4 md:flex">
         <div className="mb-8 flex items-center gap-2 px-2 py-2">
           <Shield className="h-5 w-5 text-primary" />
           <span className="font-bold">后台管理</span>
         </div>
         <nav className="flex flex-1 flex-col gap-1">
-          {NAV.map((item) => {
+          {nav.map((item) => {
             const active =
               item.href === "/admin"
                 ? pathname === "/admin"
@@ -96,9 +121,9 @@ export default function AdminLayout({
         </Link>
       </aside>
 
-      <div className="flex min-w-0 flex-1 flex-col">
-        <div className="flex items-center gap-2 overflow-x-auto border-b border-border p-3 md:hidden">
-          {NAV.map((item) => {
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b border-border p-3 md:hidden">
+          {nav.map((item) => {
             const active =
               item.href === "/admin"
                 ? pathname === "/admin"
@@ -119,7 +144,7 @@ export default function AdminLayout({
             );
           })}
         </div>
-        <main className="flex-1 p-6">{children}</main>
+        <main className="slim-scroll flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain p-6">{children}</main>
       </div>
     </div>
   );

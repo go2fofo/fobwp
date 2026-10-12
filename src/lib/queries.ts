@@ -31,15 +31,29 @@ export interface CardQuery {
   type?: string;
   faction?: string;
   xiyoudu?: string;
-  limit?: number;
+  page?: number;
+  pageSize?: number;
 }
 
-/** 查询卡牌（支持关键词/类型/派系/稀有度过滤） */
-export async function getCards(query: CardQuery = {}): Promise<Card[]> {
-  const { keyword, type, faction, xiyoudu, limit = 120 } = query;
+/** 卡牌分页结果 */
+export interface CardPage {
+  items: Card[];
+  total: number;
+}
+
+/** 查询卡牌（支持关键词/类型/派系/稀有度过滤 + 分页） */
+export async function getCards(query: CardQuery = {}): Promise<CardPage> {
+  const {
+    keyword,
+    type,
+    faction,
+    xiyoudu,
+    page = 1,
+    pageSize = 20,
+  } = query;
   let builder = supabase
     .from("cards")
-    .select("*")
+    .select("*", { count: "exact" })
     .order("id", { ascending: true });
 
   if (keyword) {
@@ -52,9 +66,11 @@ export async function getCards(query: CardQuery = {}): Promise<Card[]> {
   if (faction && faction !== "all") builder = builder.eq("faction", faction);
   if (xiyoudu && xiyoudu !== "all") builder = builder.eq("xiyoudu", xiyoudu);
 
-  const { data, error } = await builder.limit(limit);
+  const from = (Math.max(1, page) - 1) * pageSize;
+  const to = from + pageSize - 1;
+  const { data, error, count } = await builder.range(from, to);
   if (error) throw error;
-  return (data ?? []) as Card[];
+  return { items: (data ?? []) as Card[], total: count ?? 0 };
 }
 
 /** 式神卡牌映射：按 role 与按 id 两个索引（值为 cards 中的式神卡） */

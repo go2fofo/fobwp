@@ -1,7 +1,15 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Pencil, Plus, Search, Trash2 } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  Loader2,
+  Pencil,
+  Plus,
+  Search,
+  Trash2,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -42,6 +50,9 @@ const EMPTY: Card = {
   alias: [],
 };
 
+/** 每页条数 */
+const PAGE_SIZE = 20;
+
 export default function AdminCardsPage() {
   const { user } = useAuth();
   // 仅管理员可修改卡牌数据，其他账号只读
@@ -53,7 +64,11 @@ export default function AdminCardsPage() {
   const [type, setType] = React.useState("all");
   const [faction, setFaction] = React.useState("all");
   const [xiyoudu, setXiyoudu] = React.useState("all");
+  const [page, setPage] = React.useState(1);
+  const [total, setTotal] = React.useState(0);
   const debounced = useDebouncedValue(keyword);
+
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   const [open, setOpen] = React.useState(false);
   const [isEdit, setIsEdit] = React.useState(false);
@@ -63,15 +78,33 @@ export default function AdminCardsPage() {
 
   const load = React.useCallback(() => {
     setLoading(true);
-    getCards({ keyword: debounced, type, faction, xiyoudu, limit: 200 })
-      .then(setList)
-      .catch(() => setList([]))
+    getCards({
+      keyword: debounced,
+      type,
+      faction,
+      xiyoudu,
+      page,
+      pageSize: PAGE_SIZE,
+    })
+      .then((res) => {
+        setList(res.items);
+        setTotal(res.total);
+      })
+      .catch(() => {
+        setList([]);
+        setTotal(0);
+      })
       .finally(() => setLoading(false));
-  }, [debounced, type, faction, xiyoudu]);
+  }, [debounced, type, faction, xiyoudu, page]);
 
   React.useEffect(() => {
     load();
   }, [load]);
+
+  // 过滤条件变化时回到第一页
+  React.useEffect(() => {
+    setPage(1);
+  }, [debounced, type, faction, xiyoudu]);
 
   function openCreate() {
     setForm({ ...EMPTY, id: Math.floor(Date.now() / 1000) });
@@ -129,12 +162,12 @@ export default function AdminCardsPage() {
   }
 
   return (
-    <div>
-      <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
+    <div className="flex min-h-0 flex-1 flex-col">
+      <div className="mb-6 flex shrink-0 flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-bold">卡牌数据管理</h1>
           <p className="text-sm text-muted-foreground">
-            共 {list.length} 条（最多显示 200 条），支持搜索与增删改。
+            共 {total} 条，支持搜索、筛选与增删改。
           </p>
         </div>
         {isAdmin ? (
@@ -149,7 +182,7 @@ export default function AdminCardsPage() {
         )}
       </div>
 
-      <div className="mb-4 flex flex-col gap-3 md:flex-row">
+      <div className="mb-4 flex shrink-0 flex-col gap-3 md:flex-row">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -198,13 +231,13 @@ export default function AdminCardsPage() {
       </div>
 
       {loading ? (
-        <div className="flex justify-center py-20">
+        <div className="flex flex-1 items-center justify-center">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
       ) : (
-        <div className="rounded-lg border">
-          <Table>
-            <TableHeader>
+        <div className="min-h-0 flex-1 overflow-hidden rounded-lg border">
+          <Table containerClassName="slim-scroll h-full">
+            <TableHeader className="sticky top-0 z-10 bg-card">
               <TableRow>
                 <TableHead className="w-24">ID</TableHead>
                 <TableHead>名称</TableHead>
@@ -260,6 +293,32 @@ export default function AdminCardsPage() {
               )}
             </TableBody>
           </Table>
+        </div>
+      )}
+
+      {!loading && total > 0 && (
+        <div className="mt-4 flex shrink-0 items-center justify-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+          >
+            <ChevronLeft className="mr-1 h-4 w-4" />
+            上一页
+          </Button>
+          <span className="px-2 text-sm text-muted-foreground">
+            第 <b className="text-foreground">{page}</b> / {totalPages} 页
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={page >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+          >
+            下一页
+            <ChevronRight className="ml-1 h-4 w-4" />
+          </Button>
         </div>
       )}
 
