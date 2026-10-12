@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select } from "@/components/ui/select";
 import { ShishenAvatar } from "@/components/media";
 import { EvaluationBadge } from "@/components/evaluation-badge";
+import { RatingRadar } from "@/components/rating-radar";
 import { AuthDialog } from "@/components/auth-dialog";
 import { factionClass } from "@/lib/faction";
 import { useShishenCardMap } from "@/hooks/use-shishen-card-map";
@@ -391,32 +392,13 @@ export default function HomePage() {
 
                   {rating ? (
                     <>
-                      <div className="mt-3 grid grid-cols-6 gap-1">
-                        {RATING_FIELDS.map((f) => {
-                          const v =
-                            (rating[f.key as keyof ShishenScore] as number) ?? 0;
-                          return (
-                            <div
-                              key={String(f.key)}
-                              className="rounded-lg bg-secondary/60 py-1 text-center"
-                            >
-                              <div className="text-[10px] leading-tight text-muted-foreground">
-                                {f.label}
-                              </div>
-                              <div className="text-sm font-bold leading-tight">
-                                {v > 0 ? (
-                                  v
-                                ) : (
-                                  <span className="text-muted-foreground/50">
-                                    –
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          );
-                        })}
+                      <div className="mt-3 rounded-xl border border-border/70 bg-secondary/25 px-2 py-1">
+                        <RatingRadar
+                          rating={rating}
+                          className="mx-auto w-full max-w-[236px]"
+                        />
                       </div>
-                      <div className="mt-2 flex items-center justify-between text-[11px]">
+                      <div className="mt-2.5 flex items-center justify-between text-[11px]">
                         <span className="text-muted-foreground">
                           强勾{" "}
                           <b className="text-foreground">
@@ -429,7 +411,7 @@ export default function HomePage() {
                       </div>
                     </>
                   ) : (
-                    <div className="mt-3 rounded-lg border border-dashed py-2.5 text-center text-[11px] text-muted-foreground">
+                    <div className="mt-3 rounded-lg border border-dashed py-6 text-center text-[11px] text-muted-foreground">
                       当前评分系统未评分
                     </div>
                   )}
