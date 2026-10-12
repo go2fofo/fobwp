@@ -4,6 +4,7 @@ import * as React from "react";
 import {
   ChevronLeft,
   ChevronRight,
+  Layers,
   Loader2,
   Plus,
   Save,
@@ -22,6 +23,7 @@ import { EvaluationBadge } from "@/components/evaluation-badge";
 import { RatingRadar } from "@/components/rating-radar";
 import { AuthDialog } from "@/components/auth-dialog";
 import { factionClass } from "@/lib/faction";
+import { cn } from "@/lib/utils";
 import { useShishenCardMap } from "@/hooks/use-shishen-card-map";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
 import { useAuth } from "@/lib/auth-context";
@@ -104,6 +106,19 @@ export default function HomePage() {
   const [decks, setDecks] = React.useState<DeckRating[]>([]);
   const [users, setUsers] = React.useState<AppUser[]>([]);
 
+  // 移动端「我的卡组」浮层 + 可拖拽浮动按钮
+  const [deckOpen, setDeckOpen] = React.useState(false);
+  const [floatPos, setFloatPos] = React.useState<{ x: number; y: number } | null>(
+    null
+  );
+  const dragRef = React.useRef<{
+    startX: number;
+    startY: number;
+    originX: number;
+    originY: number;
+    moved: boolean;
+  } | null>(null);
+
   const userById = React.useMemo(() => {
     const m: Record<number, string> = {};
     users.forEach((u) => (m[u.id] = userLabel(u)));
@@ -136,6 +151,58 @@ export default function HomePage() {
       })
       .catch(() => setRatingByRole({}));
   }, [ownerId]);
+
+  // 初始化浮动按钮位置（右下角），窗口变化时保持可见
+  React.useEffect(() => {
+    const place = () =>
+      setFloatPos((prev) =>
+        prev ?? {
+          x: Math.max(12, window.innerWidth - 150),
+          y: Math.max(12, window.innerHeight - 120),
+        }
+      );
+    place();
+    window.addEventListener("resize", place);
+    return () => window.removeEventListener("resize", place);
+  }, []);
+
+  function onFloatPointerDown(e: React.PointerEvent<HTMLButtonElement>) {
+    if (!floatPos) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    dragRef.current = {
+      startX: e.clientX,
+      startY: e.clientY,
+      originX: floatPos.x,
+      originY: floatPos.y,
+      moved: false,
+    };
+  }
+
+  function onFloatPointerMove(e: React.PointerEvent<HTMLButtonElement>) {
+    const d = dragRef.current;
+    if (!d) return;
+    const dx = e.clientX - d.startX;
+    const dy = e.clientY - d.startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) d.moved = true;
+    const w = e.currentTarget.offsetWidth || 120;
+    const h = e.currentTarget.offsetHeight || 48;
+    const maxX = Math.max(12, window.innerWidth - w - 12);
+    const maxY = Math.max(12, window.innerHeight - h - 12);
+    setFloatPos({
+      x: Math.min(Math.max(12, d.originX + dx), maxX),
+      y: Math.min(Math.max(12, d.originY + dy), maxY),
+    });
+  }
+
+  function onFloatPointerUp(e: React.PointerEvent<HTMLButtonElement>) {
+    const d = dragRef.current;
+    dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    // 未发生拖动则视为点击，打开卡组面板
+    if (d && !d.moved) setDeckOpen(true);
+  }
 
   const factions = React.useMemo(
     () => Array.from(new Set(selected.map((s) => s.faction ?? "未知"))),
@@ -274,9 +341,9 @@ export default function HomePage() {
   return (
     <div className="mx-auto w-[90vw] py-10">
       <header className="mb-8 text-center">
-        <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-4 py-1.5 text-xs text-primary">
+        <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1.5 text-xs text-primary sm:px-4">
           <Sparkles className="h-3.5 w-3.5" />
-          百闻牌式神卡组评分系统
+          <span className="hidden sm:inline">百闻牌式神卡组评分系统</span>
         </div>
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
           组建你的
@@ -456,9 +523,16 @@ export default function HomePage() {
           )}
         </div>
 
-        {/* 卡组面板 */}
-        <aside className="lg:sticky lg:top-20 lg:h-fit lg:self-start">
-          <div className="sakura-card flex flex-col overflow-hidden lg:max-h-[calc(100vh-6rem)]">
+        {/* 卡组面板：桌面端为右侧固定栏，移动端弹出为底部浮层 */}
+        <aside
+          className={cn(
+            "lg:sticky lg:top-20 lg:h-fit lg:self-start",
+            deckOpen
+              ? "max-lg:fixed max-lg:inset-x-0 max-lg:bottom-0 max-lg:z-[95] max-lg:px-3 max-lg:pb-3"
+              : "max-lg:hidden"
+          )}
+        >
+          <div className="sakura-card flex flex-col overflow-hidden max-lg:max-h-[80vh] lg:max-h-[calc(100vh-6rem)]">
             {/* 头部（固定） */}
             <div className="flex shrink-0 items-center justify-between border-b border-border/70 bg-secondary/40 px-5 py-3.5">
               <div className="flex items-center gap-2">
@@ -467,16 +541,26 @@ export default function HomePage() {
                   {selected.length}/{MAX_DECK}
                 </span>
               </div>
-              {selected.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 px-2 text-xs"
-                  onClick={() => setSelected([])}
+              <div className="flex items-center gap-1">
+                {selected.length > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setSelected([])}
+                  >
+                    清空
+                  </Button>
+                )}
+                <button
+                  type="button"
+                  aria-label="关闭卡组面板"
+                  onClick={() => setDeckOpen(false)}
+                  className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground lg:hidden"
                 >
-                  清空
-                </Button>
-              )}
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
             </div>
 
             <div className="slim-scroll min-h-0 flex-1 overflow-y-auto p-5">
@@ -702,6 +786,33 @@ export default function HomePage() {
           </div>
         </aside>
       </div>
+
+      {/* 移动端：卡组面板遮罩 */}
+      {deckOpen && (
+        <div
+          onClick={() => setDeckOpen(false)}
+          className="fixed inset-0 z-[94] bg-slate-900/40 backdrop-blur-sm lg:hidden"
+        />
+      )}
+
+      {/* 移动端：可拖拽浮动按钮 */}
+      {floatPos && (
+        <button
+          type="button"
+          aria-label="我的卡组"
+          style={{ left: floatPos.x, top: floatPos.y }}
+          onPointerDown={onFloatPointerDown}
+          onPointerMove={onFloatPointerMove}
+          onPointerUp={onFloatPointerUp}
+          className="fixed z-[90] flex touch-none select-none items-center gap-2 rounded-full bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 active:scale-95 lg:hidden"
+        >
+          <Layers className="h-4 w-4" />
+          我的卡组
+          <span className="rounded-full bg-primary-foreground/20 px-1.5 py-0.5 text-[11px]">
+            {selected.length}/{MAX_DECK}
+          </span>
+        </button>
+      )}
 
       {/* 社区卡组评分 */}
       {decks.length > 0 && (
