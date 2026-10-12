@@ -362,7 +362,7 @@ export default function HomePage() {
         </div>
         <h1 className="text-3xl font-bold tracking-tight md:text-4xl">
           组建你的
-          <span className="text-primary">四式神卡组</span>
+          <span className="text-primary">式神卡组</span>
         </h1>
         <p className="mx-auto mt-3 max-w-xl text-sm text-muted-foreground">
           选择 4 位式神（最多 {MAX_FACTIONS} 个派系），参考评分系统查看强度，为你的卡组打分并保存。
