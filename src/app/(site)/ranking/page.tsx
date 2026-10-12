@@ -25,6 +25,7 @@ export default function RankingPage() {
   const [ownerId, setOwnerId] = React.useState<number | null>(null);
   const [ranked, setRanked] = React.useState<RankedShishen[]>([]);
   const [loading, setLoading] = React.useState(true);
+  const [factionFilter, setFactionFilter] = React.useState("all");
 
   React.useEffect(() => {
     getRatingOwners()
@@ -59,27 +60,69 @@ export default function RankingPage() {
 
   const currentOwner = owners.find((o) => o.id === ownerId);
 
+  // 带原始名次的列表（筛选后名次保持不变）
+  const rankedList = React.useMemo(
+    () => ranked.map((item, i) => ({ item, rank: i + 1 })),
+    [ranked]
+  );
+
+  const factionOptions = React.useMemo(
+    () =>
+      Array.from(new Set(ranked.map((i) => i.faction))).sort((a, b) =>
+        a.localeCompare(b, "zh-Hans-CN")
+      ),
+    [ranked]
+  );
+
+  const shown =
+    factionFilter === "all"
+      ? rankedList
+      : rankedList.filter((x) => x.item.faction === factionFilter);
+
   return (
     <div className="container max-w-4xl py-10">
       <header className="mb-8 flex flex-wrap items-end justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">式神强度榜</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            共 {ranked.length} 位式神，按「{currentOwner?.isDefault ? "默认" : currentOwner?.name ?? "—"}」评分系统的综合评分排名。
+            共 {ranked.length} 位式神，按「
+            {currentOwner?.isDefault ? "默认" : currentOwner?.name ?? "—"}
+            」评分系统的综合评分排名。
+            {factionFilter !== "all" && (
+              <span className="ml-1 text-primary">
+                （{factionFilter} {shown.length} 位）
+              </span>
+            )}
           </p>
         </div>
-        <Select
-          value={ownerId ?? ""}
-          onChange={(e) => setOwnerId(Number(e.target.value))}
-          className="h-10 w-44 rounded-full"
-        >
-          {owners.length === 0 && <option value="">暂无评分</option>}
-          {owners.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.isDefault ? "默认" : o.name}
-            </option>
-          ))}
-        </Select>
+        <div className="flex flex-wrap gap-3">
+          <Select
+            value={factionFilter}
+            onChange={(e) => setFactionFilter(e.target.value)}
+            className="h-10 w-32 rounded-full"
+            title="派系筛选"
+          >
+            <option value="all">全部派系</option>
+            {factionOptions.map((f) => (
+              <option key={f} value={f}>
+                {f}
+              </option>
+            ))}
+          </Select>
+          <Select
+            value={ownerId ?? ""}
+            onChange={(e) => setOwnerId(Number(e.target.value))}
+            className="h-10 w-44 rounded-full"
+            title="评分系统"
+          >
+            {owners.length === 0 && <option value="">暂无评分</option>}
+            {owners.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.isDefault ? "默认" : o.name}
+              </option>
+            ))}
+          </Select>
+        </div>
       </header>
 
       {loading ? (
@@ -90,9 +133,13 @@ export default function RankingPage() {
         <p className="rounded-2xl border border-dashed py-24 text-center text-sm text-muted-foreground">
           该评分系统暂无数据
         </p>
+      ) : shown.length === 0 ? (
+        <p className="rounded-2xl border border-dashed py-24 text-center text-sm text-muted-foreground">
+          该派系下暂无式神
+        </p>
       ) : (
         <div className="space-y-3">
-          {ranked.map((item, i) => {
+          {shown.map(({ item, rank }) => {
             const r = item.rating;
             return (
               <div
@@ -101,12 +148,12 @@ export default function RankingPage() {
               >
                 <span
                   className={
-                    i < 3
+                    rank <= 3
                       ? "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground"
                       : "flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-semibold text-muted-foreground"
                   }
                 >
-                  {i < 3 ? <Crown className="h-4 w-4" /> : i + 1}
+                  {rank <= 3 ? <Crown className="h-4 w-4" /> : rank}
                 </span>
 
                 <ShishenAvatar
